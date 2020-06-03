@@ -69,6 +69,9 @@ func runSubtests(t *testing.T) {
 	t.Run("netstatNginx", netstatNginx)
 	t.Run("curlWebServer", curlWebServer)
 	t.Run("checkVpn", checkVpn)
+	t.Run("checkSubnet", checkSubnet)
+	t.Run("checkBastionShape", checkBastionShape)
+	t.Run("checkLoadBallanderSubnet", checkLoadBallancerSubnet)
 }
 
 func sshBastion(t *testing.T) {
@@ -95,7 +98,7 @@ func checkVpn(t *testing.T) {
 
 	// request
 	request := core.GetVcnRequest{}
-	vcnId := sanitizedVcnId(t)
+	vcnId := sanitizedId(t, "VcnID")
 	request.VcnId = &vcnId
 
 	// response
@@ -121,9 +124,113 @@ func checkVpn(t *testing.T) {
 	}
 }
 
-func sanitizedVcnId(t *testing.T) string {
-	raw := terraform.Output(t, options, "VcnID")
+func checkLoadBallancerSubnet(t *testing.T) {
+	// client
+	config := common.CustomProfileConfigProvider("", "CzechEdu")
+	c, _ := core.NewVirtualNetworkClientWithConfigurationProvider(config)
+	// c, _ := core.NewVirtualNetworkClientWithConfigurationProvider(common.DefaultConfigProvider())
+
+	// request
+	request := core.GetSubnetRequest{}
+	subnetId := sanitizedId(t, "LBSubnetId")
+	request.SubnetId = &subnetId
+
+	// response
+	response, err := c.GetSubnet(context.Background(), request)
+
+	if err != nil {
+		t.Fatalf("error in calling vcn: %s", err.Error())
+	}
+
+	// assertions
+	expected := "Loadbalancer Subnet-default"
+	actual := response.Subnet.DisplayName
+
+	if expected != *actual {
+		t.Fatalf("wrong vcn display name: expected %q, got %q", expected, *actual)
+	}
+
+	expected = "10.0.200.0/28"
+	actual = response.Subnet.CidrBlock
+
+	if expected != *actual {
+		t.Fatalf("wrong cidr block: expected %q, got %q", expected, *actual)
+	}
+}
+
+func sanitizedId(t *testing.T, str string) string {
+	raw := terraform.Output(t, options, str)
 	return strings.Split(raw, "\"")[1]
+}
+
+func checkSubnet(t *testing.T) {
+	
+	// client
+	config := common.CustomProfileConfigProvider("", "CzechEdu")
+	c, _ := core.NewVirtualNetworkClientWithConfigurationProvider(config)
+	// c, _ := core.NewVirtualNetworkClientWithConfigurationProvider(common.DefaultConfigProvider())
+
+	// request
+	request := core.GetSubnetRequest{}
+	subnetId := sanitizedId(t, "SubnetId")
+	request.SubnetId = &subnetId
+
+	// response
+	response, err := c.GetSubnet(context.Background(), request)
+
+	if err != nil {
+		t.Fatalf("error in calling vcn: %s", err.Error())
+	}
+
+	// assertions
+	expected := "Private Subnet-default"
+	actual := response.Subnet.DisplayName
+
+	if expected != *actual {
+		t.Fatalf("wrong vcn display name: expected %q, got %q", expected, *actual)
+	}
+
+	expected = "10.0.0.0/24"
+	actual = response.Subnet.CidrBlock
+
+	if expected != *actual {
+		t.Fatalf("wrong cidr block: expected %q, got %q", expected, *actual)
+	}
+}
+
+func checkBastionShape(t *testing.T) {
+	
+	// client
+	config := common.CustomProfileConfigProvider("", "CzechEdu")
+	c, _ := core.NewComputeClientWithConfigurationProvider(config)
+	// c, _ := core.NewVirtualNetworkClientWithConfigurationProvider(common.DefaultConfigProvider())
+
+	// request
+	request := core.GetInstanceRequest{}
+	id := sanitizedId(t, "BastionId")
+	request.InstanceId = &id
+
+	// response
+	response, err := c.GetInstance(context.Background(), request)
+
+	if err != nil {
+		t.Fatalf("error in getting instance: %s", err.Error())
+	}
+
+	// assertions
+	expected := "VM.Standard2.1"
+	actual := response.Instance.Shape
+
+	if expected != *actual {
+		t.Fatalf("wrong vcn display name: expected %q, got %q", expected, *actual)
+	}
+
+	expected = "eu-frankfurt-1"
+	actual = response.Instance.Region
+
+	if expected != *actual {
+		t.Fatalf("wrong region: expected %q, got %q", expected, *actual)
+	}
 }
 
 // ~~~~~~~~~~~~~~~~ Helper functions ~~~~~~~~~~~~~~~~
